@@ -1,0 +1,19 @@
+ASH BENCH v1 (PLAN.md 6.6 / 7.1). Emulator numbers != hardware.
+== sys ==
+boot=ms0:/PSP/GAME/ASHMEM64/EBOOT.PBP
+model=10 (generation 11g; 0=1000 1=2000 2,3,6,8=3000 4=Go 10=E1000)
+devkit=0x06060010 (firmware 6.60)
+mem.maxfree_kb=47074  mem.totalfree_kb=47326  (after display+GU init)
+mem.bench_heap_kb=4096  mem.bench_static_kb~696
+mem.free_for_game_kb=51866 (maxfree+bench heap+statics)
+mem.mode=EXTENDED (64MB mode)
+emulator_guess(boot path)=no (MS speed checked later)
+build=54d59c6 Oct 15 2026 05:23:17 v1
+== gate3: cooked scene vs free RAM ==
+gate3.scene=ms0:/PSP/GAME/ASHVIEW/scene.ashm (2693 KB)
+gate3.load=2692 KB in 179 ms (14.69 MB/s)
+gate3.alloc=OK, maxfree after scene=44382 KB
+gate3.margin_kb=42517 = free 51866 - perm 4608 - reserve 2048 - scene 2693
+== gates (PLAN 7.1) ==
+GATE3=+41.5MB GREEN (64MB mode, scene real 2693KB)
+== done ==

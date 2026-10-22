@@ -1,0 +1,84 @@
+diff -ru a/src/menu/menu.c b/src/menu/menu.c
+--- a/src/menu/menu.c	2026-10-15 02:45:29.443658929 +0000
++++ b/src/menu/menu.c	2026-10-15 02:45:29.469655633 +0000
+@@ -306,20 +306,24 @@
+ typedef struct { float u, v; u32 color; float x, y, z; } FV;
+ #define FV_TYPE (GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_2D)
+ 
+-static int bind_img(const Menu *m, int img, int linear)
++static const UiImgRec *bind_img(const Menu *m, int img, int linear)
+ {
+-    if (!ui_has_img(&m->ui, img)) return 0;
+-    const UiImgRec *im = &m->ui.img[img];
++    const UiRes *r = &m->ui;
++    if (img >= MENU_IMG_EXT && m->ext_ui) { r = m->ext_ui; img -= MENU_IMG_EXT; }
++    if (!ui_has_img(r, img)) return 0;
++    const UiImgRec *im = &r->img[img];
+     sceGuClutMode(GU_PSM_8888, 0, 0xff, 0);
+-    sceGuClutLoad(32, m->ui.file + im->off_clut);
++    sceGuClutLoad(32, r->file + im->off_clut);
+     sceGuTexMode(GU_PSM_T8, 0, 0, 0);
+-    sceGuTexImage(0, im->tw, im->th, im->tw, m->ui.file + im->off_pix);
++    sceGuTexImage(0, im->tw, im->th, im->tw, r->file + im->off_pix);
+     sceGuTexFilter(linear ? GU_LINEAR : GU_NEAREST, linear ? GU_LINEAR : GU_NEAREST);
+     sceGuTexFlush();
+     sceGuEnable(GU_TEXTURE_2D);
+-    return 1;
++    return im;
+ }
+ 
++void menu_set_ext_images(Menu *m, const UiRes *r) { m->ext_ui = r; }
++
+ static void quad_uv(float x, float y, float w, float h, float u0, float v0, float u1, float v1, u32 col)
+ {
+     /* GE sprites wider than 64 texels are slow on the PSP: draw in 64-px strips of the destination */
+@@ -337,16 +341,16 @@
+ 
+ void mi_img(const Menu *m, int img, float x, float y, float w, float h, u32 col)
+ {
+-    if (!bind_img(m, img, 1)) return;
+-    const UiImgRec *im = &m->ui.img[img];
++    const UiImgRec *im = bind_img(m, img, 1);
++    if (!im) return;
+     quad_uv(x, y, w, h, 0, 0, im->w, im->h, col);
+     ui_begin();   /* src/ui caches its font binding: reset it after binding our own texture */
+ }
+ 
+ void mi_img_tile(const Menu *m, int img, float x, float y, float w, float h, u32 col)
+ {
+-    if (!bind_img(m, img, 1)) return;
+-    const UiImgRec *im = &m->ui.img[img];
++    const UiImgRec *im = bind_img(m, img, 1);
++    if (!im) return;
+     sceGuTexWrap(GU_REPEAT, GU_REPEAT);
+     quad_uv(x, y, w, h, 0, 0, w * im->tw / (float)im->w, h * im->th / (float)im->h, col);
+     ui_begin();
+diff -ru a/src/menu/menu.h b/src/menu/menu.h
+--- a/src/menu/menu.h	2026-10-15 02:45:29.444658802 +0000
++++ b/src/menu/menu.h	2026-10-15 02:45:29.468655760 +0000
+@@ -49,6 +49,9 @@
+ typedef struct { u16 s_name, s_desc; u8 gender, index; u16 pad; } MenuHairRec;              /* 8 B */
+ 
+ #define MENU_NONE16 0xffff
++/* MenuItem.img >= MENU_IMG_EXT: image (img - MENU_IMG_EXT) of the extra resource given by menu_set_ext_images()
++   (src/items items.ashui: item icons). */
++#define MENU_IMG_EXT 0x4000
+ 
+ /* ------------------------------------------------------------------ what the menu gives / takes */
+ 
+@@ -178,6 +181,7 @@
+     MenuSettings set;
+     MenuGameView *view;
+     MenuGameView own_view;   /* used when the game gives none */
++    const UiRes *ext_ui;     /* extra images (MENU_IMG_EXT), 0 = none */
+     /* on-screen keyboard */
+     int osk_on, osk_cur, osk_latin, osk_lower;
+     char osk_buf[64];
+@@ -191,6 +195,7 @@
+ void menu_free(Menu *m);
+ void menu_set_has_save(Menu *m, int has);
+ void menu_set_view(Menu *m, MenuGameView *v);   /* 0 -> built-in stub from m->chr */
++void menu_set_ext_images(Menu *m, const UiRes *r);   /* src/items: item icons for MenuItem.img >= MENU_IMG_EXT */
+ void menu_set_scene_light(Menu *m, const float dir[3], u32 diffuse, u32 ambient);
+ void menu_open(Menu *m, int screen);         /* replaces the whole stack */
+ void menu_close(Menu *m);

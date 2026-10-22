@@ -1,0 +1,20 @@
+ASH BENCH v1 (PLAN.md 6.6 / 7.1). Emulator numbers != hardware.
+== sys ==
+boot=ms0:/PSP/GAME/ASHBENCH/EBOOT.PBP
+model=10 (generation 11g; 0=1000 1=2000 2,3,6,8=3000 4=Go 10=E1000)
+devkit=0x06060010 (firmware 6.60)
+mem.maxfree_kb=18969  mem.totalfree_kb=19221  (after display+GU init)
+mem.bench_heap_kb=4096  mem.bench_static_kb~696
+mem.free_for_game_kb=23761 (maxfree+bench heap+statics)
+mem.mode=32MB mode (~24MB user)
+emulator_guess(boot path)=no (MS speed checked later)
+build=54d59c6 Oct 15 2026 05:23:17 v1
+== cpu ==
+cpu@222/111: matmul fpu=3127ns vfpu=998ns pose32=126us loop=272.8ms
+cpu@333/166: matmul fpu=2083ns vfpu=664ns pose32=84us loop=181.6ms
+cpu.speedup_333_vs_222=1.50x (expect ~1.50)
+cpu.anim_6chars_32bones_ms~0.50 (pose sampling, FPU, @333)
+== ms (memory stick) ==
+ms.write_8mb=4.47 MB/s (8192 KB in 1788 ms)
+ms.read_8mb_chunk256k=15.53 MB/s (515 ms)
+ms.read_8mb_chunk32k=11.57 MB/s (692 ms)

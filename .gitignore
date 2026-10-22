@@ -1,0 +1,70 @@
+# --- FromSoftware assets: NEVER commit (copyrighted) ---
+assets_src/
+assets_raw/
+cooked/
+*.dcx
+*.bnd
+*.flver
+*.tpf
+*.hkx
+*.msb
+*.param
+*.bdt
+*.bhd
+*.sl2
+
+# --- build outputs ---
+build/
+out/
+*.PBP
+*.prx
+*.elf
+*.SFO
+PARAM.SFO
+
+# --- test artifacts (headless runs) ---
+tests/out/
+
+# --- third party / big stuff ---
+third_party/ppsspp/
+node_modules/
+*.iso
+*.cso
+*.zip
+*.7z
+*.tar.gz
+
+# --- secrets ---
+*.env
+.env*
+*.pem
+*.key
+auth.json
+
+# --- python ---
+tools/.venv/
+__pycache__/
+*.ashm
+
+# --- memory-stick bundle (scripts/make-dist.sh): holds cooked FromSoftware data ---
+dist/
+*.ashc
+*.ashanim
+*.ashh
+*.ashcb
+# --- HUD / progression (tools/cook_ui.py, src/progress): FromSoftware text + art, save files ---
+*.ashui
+*.sav
+# --- more cooked data (tools/cook_*.py outputs) ---
+*.ashevt
+*.ashbr
+*.ashit
+*.ashcls
+*.ashboss
+*.ashtx
+*.ashmip
+*.ashl
+*.ashw
+*.pcol
+*.pak
+*.luac

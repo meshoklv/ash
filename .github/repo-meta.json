@@ -1,0 +1,6 @@
+{
+  "name": "ash",
+  "description": "A from-scratch C engine that runs a cut-down Dark Souls 1 on a real PSP. Bring your own copy.",
+  "homepage": "",
+  "topics": ["psp", "pspdev", "game-engine", "homebrew", "c", "dark-souls", "reverse-engineering", "embedded", "lua", "retro"]
+}

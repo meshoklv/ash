@@ -1,0 +1,65 @@
+ASH BENCH v1 (PLAN.md 6.6 / 7.1). Emulator numbers != hardware.
+== sys ==
+boot=host0://EBOOT.PBP
+model=1 (generation 02g; 0=1000 1=2000 2,3,6,8=3000 4=Go 10=E1000)
+devkit=0x06060010 (firmware 6.60)
+mem.maxfree_kb=18969  mem.totalfree_kb=19221  (after display+GU init)
+mem.bench_heap_kb=4096  mem.bench_static_kb~696
+mem.free_for_game_kb=23761 (maxfree+bench heap+statics)
+mem.mode=32MB mode (~24MB user)
+emulator_guess(boot path)=YES (not ms0:/ef0:)
+build=8aadaf2-plain Oct 14 2026 17:32:05 v1
+== cpu ==
+cpu@222/111: matmul fpu=1626ns vfpu=649ns pose32=67us loop=202.7ms
+cpu@333/166: matmul fpu=1084ns vfpu=432ns pose32=45us loop=135.1ms
+cpu.speedup_333_vs_222=1.50x (expect ~1.50)
+cpu.anim_6chars_32bones_ms~0.27 (pose sampling, FPU, @333)
+== ms (memory stick) ==
+ms.write_8mb=95.13 MB/s (8192 KB in 84 ms)
+ms.read_8mb_chunk256k=95.13 MB/s (84 ms)
+ms.read_8mb_chunk32k=94.40 MB/s (85 ms)
+emulator_guess=YES (MS read > 40 MB/s is not a real stick)
+== tri: GE ms, tiny triangles (vertex-bound), 333 MHz ==
+tri.notex.idx.z.10k: 1.81 ms (min 1.81) = 0.181 ms/1k
+tri.clut4.idx.z.10k: 1.81 ms (min 1.81) = 0.181 ms/1k
+tri.clut8.idx.z.10k: 1.81 ms (min 1.81) = 0.181 ms/1k
+tri.clut8vram.idx.z.10k: 1.81 ms (min 1.81) = 0.181 ms/1k
+tri.565.idx.z.10k: 1.81 ms (min 1.81) = 0.181 ms/1k
+tri.clut4.idx.noz.10k: 1.81 ms (min 1.81) = 0.181 ms/1k
+tri.clut4.nonidx.z.10k: 1.81 ms (min 1.81) = 0.181 ms/1k
+tri.clut4.strip.z.10k: 0.62 ms (min 0.62) = 0.062 ms/1k
+tri.clut4.float.z.10k: 1.81 ms (min 1.81) = 0.181 ms/1k
+tri.scale.clut4.idx.5k: 0.91 ms = 0.182 ms/1k
+tri.scale.clut4.idx.10k: 1.81 ms = 0.181 ms/1k
+tri.scale.clut4.idx.20k: 3.61 ms = 0.181 ms/1k
+tri.scale.clut4.idx.30k: 5.41 ms = 0.180 ms/1k
+== fill: full-screen layers (480x272 each) ==
+fill.flat.x1: 0.02 ms (8608 Mpix/s)
+fill.flat.x2: 0.02 ms (17217 Mpix/s)
+fill.flat.x4: 0.02 ms (25896 Mpix/s)
+fill.clut4.x1: 0.02 ms (8515 Mpix/s)
+fill.clut4.x2: 0.01 ms (17408 Mpix/s)
+fill.clut4.x4: 0.02 ms (25684 Mpix/s)
+fill.clut4+blend.x1: 0.01 ms (8704 Mpix/s)
+fill.clut4+blend.x2: 0.01 ms (17408 Mpix/s)
+fill.clut4+blend.x4: 0.02 ms (25475 Mpix/s)
+== open view: 10k tris CLUT4, 2 layers = overdraw 2x ==
+open.10k.clut4.od2: 1.81 ms (min 1.81)
+open.10k.+lightmap_pass (20k tris drawn): 3.61 ms
+== skin: chars x 2048 tris x 32 bones; frame ms (no vsync) ==
+   cpu=bone matrices (VFPU gum), build=list, wait=GE after list end
+skin.1xA8: avg 0.78 ms (1274.9 fps) p95 0.79 max 0.79 | cpu 0.08 build 0.02 wait 0.68
+skin.4xA8: avg 3.06 ms (327.1 fps) p95 3.06 max 3.06 | cpu 0.30 build 0.07 wait 2.69
+skin.6xA8: avg 4.57 ms (218.7 fps) p95 4.57 max 4.57 | cpu 0.44 build 0.11 wait 4.03
+skin.8xA8: avg 6.09 ms (164.3 fps) p95 6.09 max 6.09 | cpu 0.58 build 0.14 wait 5.37
+skin.6xA4: avg 4.58 ms (218.6 fps) p95 4.58 max 4.58 | cpu 0.44 build 0.12 wait 4.01
+skin.6xC: avg 4.60 ms (217.2 fps) p95 4.61 max 4.61 | cpu 0.44 build 0.31 wait 3.86
+skin.6xA8+world10k: avg 6.37 ms (157.0 fps) p95 6.37 max 6.37 | cpu 0.44 build 0.11 wait 5.82
+== gate3: cooked scene vs free RAM ==
+gate3.scene=SYNTHETIC (no ASHVIEW/scene.ashm) (2693 KB)
+gate3.alloc=OK, maxfree after scene=16276 KB
+gate3.margin_kb=14412 = free 23761 - perm 4608 - reserve 2048 - scene 2693
+== gates (PLAN 7.1) ==
+GATE1=218.7fps(p95 4.6ms) GREEN | GATE2=1.81ms GREEN | GATE3=+14.1MB GREEN (32MB mode, scene synthetic 2693KB) [EMULATOR?]
+== done ==
+saved: host0://results.txt

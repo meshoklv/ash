@@ -1,0 +1,238 @@
+--- a/src/game/CMakeLists.txt
++++ b/src/game/CMakeLists.txt
+@@ -17,6 +17,19 @@
+   target_link_libraries(ash_asylum PRIVATE ash_render)
+   target_compile_definitions(ash_asylum PRIVATE ASY_RENDER=1)
+ endif()
++# PSP-est in the game itself (docs/psp-cost-model.md, the perf-night design notes): cmake -DASH_PERF=ON -> cost model, PSPEST log,
++# CPU split by system (perf_begin/perf_end in asy_main.c). Off = the macros are empty, nothing changes.
++option(ASH_PERF "link src/perf (PSP-3000 cost model) into ash_asylum" OFF)
++if(ASH_PERF)
++  find_program(ASH_PY python3 REQUIRED)
++  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/perf_cost_gen.h
++    COMMAND ${ASH_PY} ${CMAKE_SOURCE_DIR}/tools/perf/cfg2h.py ${CMAKE_SOURCE_DIR}/src/perf/psp_cost.cfg ${CMAKE_CURRENT_BINARY_DIR}/perf_cost_gen.h
++    DEPENDS ${CMAKE_SOURCE_DIR}/src/perf/psp_cost.cfg)
++  target_sources(ash_asylum PRIVATE ../perf/perf.c ../perf/ge_scan.c ${CMAKE_CURRENT_BINARY_DIR}/perf_cost_gen.h)
++  target_include_directories(ash_asylum PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ../perf)
++  target_compile_definitions(ash_asylum PRIVATE ASH_PERF=1)
++  target_link_options(ash_asylum PRIVATE "-Wl,--wrap=sceGuStart,--wrap=sceGuFinish,--wrap=sceGuSync,--wrap=sceGuSwapBuffers,--wrap=sceGuDrawBuffer")
++endif()
+ create_pbp_file(
+   TARGET ash_asylum
+   TITLE "Ash: Asylum"
+--- a/src/game/asy_main.c
++++ b/src/game/asy_main.c
+@@ -35,6 +35,15 @@
+ #include "scene.h"
+ #ifdef ASY_RENDER
+ #include "render.h"
++#include "render_chrf.h"
++#include "render_world.h"
++#endif
++#ifdef ASH_PERF
++#include "perf.h"
++#else
++#define perf_begin(s) ((void)0)
++#define perf_end(s) ((void)0)
++#define perf_count_chars(n) ((void)0)
+ #endif
+ 
+ PSP_MODULE_INFO("Ash Asylum", 0, 1, 0);
+@@ -64,6 +73,44 @@
+ static int g_render_on = 0;
+ #endif   /* demo.txt 4th word "plain" = without src/render (A/B check) */
+ 
++#ifdef ASY_RENDER
++/* PSP speed path (the perf-night design notes): strips/cached lists/sorted textures/mips/hot VRAM for the zone, compact s16
++   skinned characters. demo.txt 4th word "slow" = the old world_draw/chr_draw (A/B in one EBOOT). */
++static int g_fast = 1;
++static RenderWorld g_rw;
++static RenderMips g_wmips;
++static ChrFast g_cf[3];
++static const Chr *g_cf_src[3];
++static void chr_draw_any(const Chr *c, const ScePspFMatrix4 *skin)
++{
++    if (g_fast)
++        for (int i = 0; i < 3; i++)
++            if (g_cf_src[i] == c) { render_chrf_draw(&g_cf[i], skin); return; }
++    chr_draw(c, skin);
++}
++static void boss_draw_any(Boss *b)
++{
++    if (!g_fast) { boss_draw(b); return; }
++    if (!b->visible || b->st == BS_INACTIVE || b->st == BS_DEAD) return;   /* = boss_draw() with chr_draw_any */
++    sceGumMatrixMode(GU_MODEL);
++    sceGumLoadIdentity();
++    ScePspFVector3 t = {b->pos[0], b->pos[1], b->pos[2]};
++    sceGumTranslate(&t);
++    sceGumRotateY(b->yaw);
++    chr_draw_any(&b->chr, b->skin);
++    sceGumLoadIdentity();
++}
++#else
++#define chr_draw_any chr_draw
++#define boss_draw_any boss_draw
++#endif
++
++/* GE/CPU overlap (the perf-night design notes): the next frame's simulation runs between sceGuFinish and sceGuSync, while
++   the GE draws this frame (the list holds copies of every matrix and per-frame vertex, nothing the step changes is
++   read by the GE). Same step sequence and input latency as before. demo.txt "nopipe"/"slow" = old order. */
++static int g_pipe = 1, g_pipe_steps, g_pipe_demo;
++static void sim_steps(int steps, int demo);
++
+ static int load(const char *name, u8 **out)
+ {
+     return ash_load_file(name, out, NULL, 0);
+@@ -102,13 +149,13 @@
+     if (g_render_on) {
+         float chest[3] = {pos[0], pos[1] + 1.2f, pos[2]};
+         render_char_light_begin(chest);
+-        chr_draw(c, skin);
++        chr_draw_any(c, skin);
+         render_char_light_end();
+         sceGuEnable(GU_LIGHTING);
+         return;
+     }
+ #endif
+-    chr_draw(c, skin);
++    chr_draw_any(c, skin);
+ }
+ 
+ /* small lock-on dot at the projected target point */
+@@ -150,6 +197,10 @@
+     sceGuTexWrap(GU_REPEAT, GU_REPEAT);
+     sceGuAlphaFunc(GU_GREATER, 0x80, 0xff);
+     WorldStats st;
++    perf_begin(PERF_LIST);
++#ifdef ASY_RENDER
++    if (g_fast) render_world_draw(&g_rw, &proj, &view, g->cam.eye, &st); else
++#endif
+     world_draw(&g->W, &proj, &view, g->cam.eye, &st);
+ 
+     /* characters: GE lighting (one directional + ambient, PLAN §3.6), the map has its light baked */
+@@ -180,11 +231,11 @@
+         if (g_render_on) {
+             float chest[3] = {g->B.pos[0], g->B.pos[1] + 3.0f, g->B.pos[2]};
+             render_char_light_begin(chest);
+-            boss_draw(&g->B);
++            boss_draw_any(&g->B);
+             render_char_light_end();
+         } else
+ #endif
+-        boss_draw(&g->B);
++        boss_draw_any(&g->B);
+     }
+     sceGuDisable(GU_LIGHTING);
+ #ifdef ASY_RENDER
+@@ -252,7 +303,10 @@
+         }
+     }
+     ui_end();
++    perf_end(PERF_LIST);
++    perf_count_chars(1 + g->n_en + (g->has_boss ? 1 : 0));
+     sceGuFinish();
++    if (g_pipe) sim_steps(g_pipe_steps, g_pipe_demo);
+     sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE);
+ 
+     if (demo) {   /* autopilot info on the bottom line (debug font) */
+@@ -264,6 +318,27 @@
+     }
+ }
+ 
++static void sim_steps(int steps, int demo)
++{
++    perf_begin(PERF_SIM);
++    for (int s = 0; s < steps; s++) {
++        RawPad raw = {0, 128, 128};
++        if (!demo) {
++            SceCtrlData pad;
++            sceCtrlPeekBufferPositive(&pad, 1);
++            raw.buttons = pad.Buttons; raw.lx = pad.Lx; raw.ly = pad.Ly;
++        }
++        game_step(&G, &raw);
++#ifdef ASY_RENDER
++        for (int k = 0; k < G.n_fx; k++) {
++            if (G.fx_kind[k] == 3) fx_roll_dust(G.fx_pos[k], G.pl.yaw);
++            else fx_hit_spark(G.fx_pos[k], G.fx_dir[k], G.fx_kind[k] == 2);
++        }
++#endif
++    }
++    perf_end(PERF_SIM);
++}
++
+ int main(void)
+ {
+     int th = sceKernelCreateThread("cb_thread", cb_thread, 0x11, 0xFA0, 0, 0);
+@@ -291,6 +366,10 @@
+             char sc[32] = "", opt[32] = "";
+             sscanf((const char *)buf, "%d %d %31s %31s", &dump_every, &max_frames, sc, opt);
+             if (!strcmp(opt, "plain")) g_render_on = 0;
++#ifdef ASY_RENDER
++            if (!strcmp(opt, "slow")) g_fast = 0;
++#endif
++            if (!strcmp(opt, "slow") || !strcmp(opt, "nopipe")) g_pipe = 0;
+             if (!strcmp(opt, "camlog")) G.camlog = 1;
+             if (!strcmp(opt, "doorfight")) G.doorfight = 1;
+             scenario = ASY_SC_ROUTE;
+@@ -307,8 +386,29 @@
+     {
+         int used = 3 * BUF_WIDTH * SCR_HEIGHT * 2;
+         int free_vram = sceGeEdramGetSize() - used;
+-        int got = world_upload_vram(&G.W, (u8 *)sceGeEdramGetAddr() + used, free_vram);
++        u8 *vram = (u8 *)sceGeEdramGetAddr() + used;
++#ifdef ASY_RENDER
++        if (g_fast) {
++            u8 *mb;
++            int ms = ash_load_file("zone_m18_01.ashmip", &mb, NULL, 0), has_mips = ms > 0 && render_mips_load(&g_wmips, mb, ms) == 0;
++            int r = render_world_init(&g_rw, &G.W, has_mips ? &g_wmips : NULL, RW_ALL);
++            int got = r == 0 ? render_world_vram(&g_rw, vram, free_vram) : 0;
++            const Chr *cs[3] = {&G.kchr, &G.hchr, G.has_boss ? &G.B.chr : NULL};
++            for (int i = 0; i < 3; i++) {
++                if (!cs[i] || render_chrf_init(&g_cf[i], cs[i]) != 0) continue;
++                g_cf_src[i] = cs[i];
++                got += render_chrf_vram(&g_cf[i], vram + got, free_vram - got);
++                printf("ash-asy: fast chr %d: %d -> %d indices, weights %d -> %d, +%d KB\n", i, g_cf[i].idx_in,
++                       g_cf[i].idx_out, g_cf[i].w_in, g_cf[i].w_out, g_cf[i].bytes / 1024);
++            }
++            printf("ash-asy: fast zone %d (mips %d), lists %d KB, strips %d KB; VRAM %d KB of %d KB\n", r, has_mips,
++                   g_rw.dl_bytes / 1024, g_rw.strip_bytes / 1024, got / 1024, free_vram / 1024);
++        } else
++#endif
++        {
++        int got = world_upload_vram(&G.W, vram, free_vram);
+         printf("ash-asy: zone textures %s VRAM (%d KB of %d KB)\n", got ? "in" : "NOT in", got / 1024, free_vram / 1024);
++        }
+     }
+     sceGuInit();
+     sceGuStart(GU_DIRECT, g_list);
+@@ -360,7 +460,6 @@
+     }
+ 
+     void *draw = fbp0;
+-    SceCtrlData pad;
+     int demo = scenario != ASY_SC_NONE;
+     unsigned frame = 0, dumps = 0, frames_in_sec = 0;
+     float fps = 0, acc = 0, end_wait = 0;
+@@ -378,20 +477,8 @@
+         if (acc > ASY_DT) acc = ASY_DT;
+         u64 ts = now_ticks();
+         unsigned casts0 = G.cam_casts;
+-        for (int s = 0; s < steps; s++) {
+-            RawPad raw = {0, 128, 128};
+-            if (!demo) {
+-                sceCtrlPeekBufferPositive(&pad, 1);
+-                raw.buttons = pad.Buttons; raw.lx = pad.Lx; raw.ly = pad.Ly;
+-            }
+-            game_step(&G, &raw);
+-#ifdef ASY_RENDER
+-            for (int k = 0; k < G.n_fx; k++) {
+-                if (G.fx_kind[k] == 3) fx_roll_dust(G.fx_pos[k], G.pl.yaw);
+-                else fx_hit_spark(G.fx_pos[k], G.fx_dir[k], G.fx_kind[k] == 2);
+-            }
+-#endif
+-        }
++        if (g_pipe) { g_pipe_steps = steps; g_pipe_demo = demo; }   /* stepped inside draw_frame, GE busy */
++        else sim_steps(steps, demo);
+         {
+             double us = us_since(ts);
+             sum_sim += us;

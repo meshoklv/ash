@@ -1,0 +1,9 @@
+warm 30
+still bonfire 48.3 -58.6 51.2 51.8 -59.8 56.5
+still fromfire 52.5 -58.2 54.0 35 -56 85
+still crest 49.2 -58.9 60.0 51 -59.3 62.8 50
+still knight_back 53.5 -58.4 58.5 49 -59.3 52
+still arcade 50 -57.8 62 38 -57 40
+still courtyard 38 -50 98 26 -54 86
+still high_bonfire 44 -48 70 51.8 -60 55
+still overview_ne 60 -46 44 33 -57 92
